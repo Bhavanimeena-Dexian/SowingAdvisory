@@ -1,119 +1,93 @@
 import React, { useState } from "react";
-import {
-  FaMicrophone,
-  FaPaperPlane,
-  FaSeedling,
-  FaUser,
-  FaRobot,
-} from "react-icons/fa";
+import { FaMicrophone, FaPaperPlane, FaSeedling, FaUser, FaRobot } from "react-icons/fa";
 import "../styles/Chatbot.css";
-
-const API_URL = "http://127.0.0.1:8000"; // FastAPI backend URL
 
 const Chatbot = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  // eslint-disable-next-line no-unused-vars
-  const [isListening, setIsListening] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
 
-  // Delay messages for smooth display
-  const delayMessage = (newMessage) => {
-    setTimeout(() => {
-      setMessages((prev) => [...prev, newMessage]);
-      if (newMessage.type === "bot") {
-        speakMessage(newMessage.text);
-      }
-    }, 1000 * (messages.length + 1));
+  // Function to add messages to chat UI
+  const addMessage = (text, type) => {
+    setMessages((prev) => [...prev, { text, type }]);
   };
 
-  // Send Text Input to Chatbot API
-  const handleSend = async (overrideInput) => {
-    const messageText = overrideInput || input;
-    if (!messageText.trim()) return;
-
-    const userMessage = { text: messageText, type: "user" };
-    setMessages((prev) => [...prev, userMessage]);
-
+  // Send text input to backend (Mistral)
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    addMessage(input, "user");
+  
     try {
-      const response = await fetch(`${API_URL}/api/mistral`, {
+      const response = await fetch("http://127.0.0.1:8000/api/mistral", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: messageText }),
+        body: JSON.stringify({ text: input }),
       });
-
+  
       const data = await response.json();
-      const botResponse = { text: data.reply, type: "bot" };
-
-      delayMessage(botResponse);
-    } catch (error) {
-      console.error("❌ Error sending message:", error);
-      const botResponse = {
-        text: "⚠️ Error: Could not connect to backend!",
-        type: "bot",
-      };
-      delayMessage(botResponse);
-    }
-
-    setInput("");
-  };
-
-  // Text-to-Speech: Make the bot speak
-  const speakMessage = (text) => {
-    if ("speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
-      speechSynthesis.speak(utterance);
-    } else {
-      alert("Speech synthesis not supported in this browser.");
-    }
-  };
-
-  // Speech-to-Text: Capture user voice input
-  const handleSpeechRecognition = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition not supported in this browser.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
-    recognition.onresult = async (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log("🎤 Recognized Speech:", transcript);
-
-      // Send transcript to FastAPI STT API
-      try {
-        const formData = new FormData();
-        formData.append("text", transcript);
-
-        const response = await fetch(`${API_URL}/api/transcribe`, {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await response.json();
-        const recognizedText = data.text;
-
-        console.log("📜 Transcribed Text:", recognizedText);
-        handleSend(recognizedText);
-      } catch (error) {
-        console.error("❌ Error transcribing audio:", error);
+      addMessage(data.reply, "bot");
+  
+      // Play Google TTS response if available
+      if (data.tts_audio_url) {
+        setAudioUrl(data.tts_audio_url);
       }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
+    } catch (error) {
+      console.error("❌ Error sending text:", error);
+      addMessage("⚠️ Could not connect to backend!", "bot");
+    }
+  
+    setInput(""); // ✅ Clears input field
   };
+  
+  // Record voice and send to backend for WhisperX STT
+  const handleVoiceInput = async () => {
+    setIsRecording(true);
+  
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); // ✅ Request mic permission
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks = [];
+  
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+  
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        const formData = new FormData();
+        formData.append("file", audioBlob, "voice_input.wav");
+  
+        try {
+          const response = await fetch("http://127.0.0.1:8000/api/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+  
+          const data = await response.json();
+          addMessage(`🎤 You said: ${data.text}`, "user");
+          setInput(data.text); // Auto-fill transcribed text
+  
+          // Auto-send transcribed text to Mistral
+          handleSend();
+        } catch (error) {
+          console.error("❌ Error transcribing voice:", error);
+          addMessage("⚠️ Voice input failed!", "bot");
+        }
+      };
+  
+      mediaRecorder.start();
+      setTimeout(() => {
+        mediaRecorder.stop();
+        setIsRecording(false);
+      }, 5000); // Record for 5 seconds
+    } catch (error) {
+      console.error("❌ Error accessing microphone:", error);
+      alert("Microphone access denied. Please allow access in browser settings.");
+      setIsRecording(false);
+    }
+  };
+  
 
   return (
     <div className="chat-container">
@@ -135,29 +109,23 @@ const Chatbot = () => {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleSend(); // Calls the send function when Enter is pressed
-            }
-          }}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type your query..."
         />
-
-        <button
-          onClick={() => handleSend()}
-          className="send-button"
-          title="Send"
-        >
+        <button onClick={handleSend} className="send-button" title="Send">
           <FaPaperPlane />
         </button>
         <button
-          onClick={handleSpeechRecognition}
-          className="speak-button"
-          title="Speak"
+          onClick={handleVoiceInput}
+          className={`speak-button ${isRecording ? "recording" : ""}`}
+          title="Hold to Speak"
         >
           <FaMicrophone />
         </button>
       </div>
+
+      {/* Play Google TTS Response */}
+      {audioUrl && <audio src={audioUrl} autoPlay />}
 
       <footer className="chat-footer">© 2025 Sowing Advisory Chatbot</footer>
     </div>

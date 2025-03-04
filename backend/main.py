@@ -1,60 +1,90 @@
 import os
+import base64
+import subprocess
+import uuid  # Importing uuid to generate unique filenames
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import whisperx
 import torch
-import requests  
+import requests
+from gtts import gTTS
 
-# Initialize FastAPI
+# Initializing FastAPI application
 app = FastAPI()
 
-# Enable CORS for frontend communication (React)
+# Enabling CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend URL
+    allow_origins=["*"],  # Allowing all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load WhisperX Model for Speech-to-Text (STT)
+# Ensuring necessary directories exist
+TEMP_AUDIO_DIR = "temp_audio"
+STATIC_AUDIO_DIR = "static"
+os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
+os.makedirs(STATIC_AUDIO_DIR, exist_ok=True)
+
+# Mounting the static directory to serve generated audio files
+app.mount("/static", StaticFiles(directory=STATIC_AUDIO_DIR), name="static")
+
+# Loading the WhisperX model for speech-to-text processing
 device = "cuda" if torch.cuda.is_available() else "cpu"
 stt_model = whisperx.load_model("large-v2", device, compute_type="float32")
 
-# Ensure temp_audio directory exists
-TEMP_AUDIO_DIR = "temp_audio"
-os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)  # Creates folder if not exists
 
 @app.get("/")
 async def root():
-    """Root endpoint to check if API is running."""
-    return {"message": "Welcome to the Sowing Advisory Chatbot API!"}
+    """Handling the root endpoint to verify if the API is running."""
+    return {"message": "Sowing Advisory Chatbot API is running"}
 
 
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """
-    Receives an audio file, saves it, and transcribes it using WhisperX.
+    Handling audio file uploads, converting them to WAV format if necessary, 
+    and transcribing them using the WhisperX model.
     """
-
     try:
-        audio_path = os.path.join(TEMP_AUDIO_DIR, file.filename)
+        # Defining allowed audio file formats
+        allowed_formats = (".wav", ".mp3", ".m4a")
+        if not file.filename.endswith(allowed_formats):
+            raise HTTPException(status_code=400, detail="Unsupported file format. Allowed formats: .wav, .mp3, .m4a.")
 
-        # Save the uploaded file
-        with open(audio_path, "wb") as buffer:
+        # Defining file paths
+        input_audio_path = os.path.join(TEMP_AUDIO_DIR, file.filename)
+        converted_audio_path = os.path.join(TEMP_AUDIO_DIR, "converted.wav")
+
+        # Saving the uploaded file locally
+        with open(input_audio_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        # ✅ Debugging: Check if file is saved
-        print(f"File saved at: {audio_path}")
+        # Converting the file to WAV format using FFmpeg for compatibility
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", input_audio_path, "-ar", "16000", "-ac", "1", converted_audio_path],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            raise HTTPException(status_code=500, detail=f"FFmpeg conversion failed: {e}")
 
-        # ✅ Debugging: Check if file exists
-        if not os.path.exists(audio_path):
-            raise HTTPException(status_code=500, detail=f"File {audio_path} does not exist.")
+        # Checking if the converted file exists
+        if not os.path.exists(converted_audio_path):
+            raise HTTPException(status_code=500, detail="Converted audio file is missing after FFmpeg conversion.")
 
-        # Transcribe the audio
-        audio = whisperx.load_audio(audio_path)
+        # Transcribing the audio using WhisperX
+        audio = whisperx.load_audio(converted_audio_path)
         result = stt_model.transcribe(audio)
-        transcribed_text = result["text"]
+
+        # Extracting transcribed text from the output
+        transcribed_text = " ".join([segment["text"] for segment in result.get("segments", [])])
+
+        # Raising an error if the transcription is empty
+        if not transcribed_text.strip():
+            raise HTTPException(status_code=500, detail="WhisperX returned an empty transcription.")
 
         return {"text": transcribed_text}
 
@@ -63,28 +93,45 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 
 @app.post("/api/mistral")
-async def process_text(data: dict):
+async def process_mistral(data: dict):
     """
-    Placeholder API for Mistral (RAG Model).
-    Replace this with actual Mistral API call when available.
+    Handling text input and returning a placeholder response 
+    as a part of the Mistral AI integration.
     """
     user_input = data.get("text", "No input provided")
 
-    # 🛑 Temporary response (Replace this when Mistral is ready)
-    rag_response = f"[MISTRAL-RAG RESPONSE] Processing: {user_input}"
+    # Defining a placeholder response
+    mistral_response = f"Mistral AI placeholder response for: {user_input}"
 
-    return {"reply": rag_response}
+    # Sending the response to the text-to-speech API
+    tts_response = requests.post(
+        "http://127.0.0.1:8000/api/tts",
+        json={"text": mistral_response}
+    ).json()
+
+    return {
+        "reply": mistral_response,
+        "tts_audio_url": tts_response.get("audio_url", ""),
+    }
 
 
 @app.post("/api/tts")
 async def text_to_speech(data: dict):
     """
-    Placeholder API for Text-to-Speech (TTS).
-    Replace this with actual TTS code when ready.
+    Handling text-to-speech conversion using gTTS and returning an audio URL.
     """
     response_text = data.get("text", "No text provided")
 
-    # 🛑 Temporary response (Replace this when TTS is ready)
-    fake_audio_url = f"http://127.0.0.1:8000/static/fake_audio.wav"
+    # Generating a unique filename for the output audio file
+    unique_filename = f"tts_{uuid.uuid4().hex}.mp3"
+    audio_output_path = os.path.join(STATIC_AUDIO_DIR, unique_filename)
 
-    return {"audio_url": fake_audio_url, "text": response_text}
+    try:
+        # Converting text to speech using gTTS
+        tts = gTTS(text=response_text, lang="en")
+        tts.save(audio_output_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Text-to-speech conversion failed: {e}")
+
+    # Returning the generated audio file URL
+    return {"audio_url": f"http://127.0.0.1:8000/static/{unique_filename}", "text": response_text}
