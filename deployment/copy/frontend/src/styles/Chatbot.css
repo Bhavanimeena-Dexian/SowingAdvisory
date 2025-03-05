@@ -1,0 +1,107 @@
+/* Chatbot Container Styling */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #4CAF50, #2E7D32);
+  color: white;
+  font-family: 'Arial', sans-serif;
+  text-align: center;
+}
+
+/* Chat Header Styling */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+/* Subtitle for Chat */
+.chat-subtitle {
+  margin-bottom: 20px;
+  font-size: 1.2rem;
+}
+
+/* Chat Box Styling */
+.chat-box {
+  width: 80%;
+  max-width: 600px;
+  height: 60vh;
+  overflow-y: auto;
+  background: #1b5e20;
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Chat Message Styling */
+.chat-message {
+  margin: 10px 0;
+  padding: 10px 15px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  word-break: break-word;
+}
+
+/* User and Bot Message Differentiation */
+.user {
+  background: #66bb6a;
+  align-self: flex-end;
+  justify-content: flex-end;
+}
+
+.bot {
+  background: #2e7d32;
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+
+/* Chat Input Section */
+.chat-input {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.chat-input input {
+  padding: 10px;
+  width: 60%;
+  border: none;
+  border-radius: 20px;
+  outline: none;
+  font-size: 1rem;
+}
+
+/* Button Styling */
+.send-button, .speak-button {
+  background: #388e3c;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.send-button:hover, .speak-button:hover {
+  background: #66bb6a;
+}
+
+/* Footer Styling */
+.chat-footer {
+  margin-top: 20px;
+  font-size: 0.9rem;
+}
