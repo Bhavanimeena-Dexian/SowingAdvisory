@@ -6,7 +6,7 @@ from query_refinement import *
 # Azure OpenAI Credentials  
 endpoint = os.getenv("ENDPOINT_URL", "https://dines-m7lp6cc0-japaneast.openai.azure.com/")  
 deployment = os.getenv("DEPLOYMENT_NAME", "cutn2-gpt4o")  
-subscription_key = os.getenv("AZURE_OPENAI_API_KEY", "3fodGsX48w3Ln4oFdVjDZxN56MrnzM352n7wYvQTXEjVSoV0PdMfJQQJ99BBACi0881XJ3w3AAAAACOGSoaO")  
+subscription_key = os.getenv("AZURE_OPENAI_API_KEY", )  
 
 # Initialize Azure OpenAI Client  
 client = AzureOpenAI(  
@@ -18,17 +18,16 @@ client = AzureOpenAI(
 def generate_gpt4o_response(query_text, retrieved_chunks):
     """ Uses retrieved chunks as context and queries GPT-4o for response. """
     
-    # Extract only the text from retrieved documents
+
     extracted_chunks = [chunk if isinstance(chunk, str) else chunk.get("text", "") for chunk in retrieved_chunks]
 
-    # Ensure we only pass valid text chunks
     extracted_chunks = [chunk for chunk in extracted_chunks if chunk]  
 
     if not extracted_chunks:
         print("❌ No valid text chunks found in retrieval.")
         return None
 
-    prompt = format_context(query_text, extracted_chunks)  # Use extracted chunks in prompt
+    prompt = format_context(query_text, extracted_chunks)  
 
     chat_prompt = [
         {"role": "system", "content": "You are an AI assistant that helps people find information."},
@@ -47,19 +46,21 @@ def generate_gpt4o_response(query_text, retrieved_chunks):
         stream=False
     )
     
-    return completion.choices[0].message.content  # ✅ Correct
+    return completion.choices[0].message.content  
 
 
 
-# Example Usage
-query = "What advisory would you give for the mangoes?"
-retrieved_chunks = query_chromadb(query)  # Retrieve documents
+query = "recommand the variety of millets during kharif season in Tamilnadu?"
+
+
+    
+retrieved_chunks = query_chromadb(query) 
 
 if retrieved_chunks:
     answer = generate_gpt4o_response(query, retrieved_chunks)
     print("\n💡 GPT-4o Response:\n", answer)
 else:
-    print("❌ No relevant documents found.")
+    print(" No relevant documents found.")
 
 
 
