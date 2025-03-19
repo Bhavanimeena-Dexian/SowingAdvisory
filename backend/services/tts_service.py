@@ -1,23 +1,26 @@
 import os
-import uuid
 from gtts import gTTS
-from fastapi import HTTPException
+import uuid
 
-# Setting up directories
-STATIC_AUDIO_DIR = "static"
-os.makedirs(STATIC_AUDIO_DIR, exist_ok=True)
+# Ensure the static/tts directory exists
+OUTPUT_DIR = "static/tts"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def generate_speech(text):
+def generate_speech(text: str):
     """
-    Converts text to speech using Google Text-to-Speech (gTTS).
+    Converts text to speech using gTTS and saves the audio file.
+    Returns the file URL.
     """
-    unique_filename = f"tts_{uuid.uuid4().hex}.mp3"
-    audio_output_path = os.path.join(STATIC_AUDIO_DIR, unique_filename)
-
     try:
-        tts = gTTS(text=text, lang="en")
-        tts.save(audio_output_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Text-to-speech conversion failed: {e}")
+        filename = f"tts_{uuid.uuid4().hex}.mp3"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+        
+        # Generate speech
+        tts = gTTS(text)
+        tts.save(filepath)
 
-    return {"audio_url": f"http://127.0.0.1:8000/static/{unique_filename}", "text": text}
+        # Return the URL to access the generated speech file
+        return {"audio_url": f"http://127.0.0.1:8000/static/tts/{filename}", "text": text}
+    
+    except Exception as e:
+        return {"error": str(e)}

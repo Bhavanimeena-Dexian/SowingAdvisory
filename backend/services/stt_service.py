@@ -9,8 +9,8 @@ TEMP_AUDIO_DIR = "temp_audio"
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
 # Load WhisperX model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-stt_model = whisperx.load_model("large-v2", device, compute_type="float32")
+device = "cpu"
+stt_model = whisperx.load_model("small", device, compute_type="float32")
 
 def convert_speech_to_text(audio_file):
     """

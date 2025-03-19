@@ -1,6 +1,6 @@
 from openai import AzureOpenAI
 from utils.env_loader import ENDPOINT_URL, DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY
-from services.search.py import search_query
+from services.search import search_query
 
 # Initialize Azure OpenAI Client
 client = AzureOpenAI(

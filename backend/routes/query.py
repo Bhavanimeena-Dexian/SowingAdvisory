@@ -1,11 +1,16 @@
-from flask import Blueprint, request, jsonify
-from services.gpt import generate_gpt_response
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from services.gpt import generate_gpt_response 
 
-# Create a Blueprint for handling queries
-query_bp = Blueprint("query", __name__)
+# Create a FastAPI router
+query_router = APIRouter()
 
-@query_bp.route("/query", methods=["POST"])
-def handle_query():
+# Define request model
+class QueryRequest(BaseModel):
+    query: str
+
+@query_router.post("/")
+async def handle_query(request: QueryRequest):
     """
     API endpoint to process user queries.
 
@@ -17,12 +22,11 @@ def handle_query():
     Returns:
         JSON response containing the answer.
     """
-    data = request.get_json()
-    user_query = data.get("query")
+    user_query = request.query
 
     if not user_query:
-        return jsonify({"error": "Missing query parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing query parameter")
 
     # Generate response
     answer = generate_gpt_response(user_query)
-    return jsonify({"query": user_query, "answer": answer})
+    return {"query": user_query, "answer": answer}
